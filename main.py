@@ -21,7 +21,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import requests
-from flask import Flask
+from flask import Flask, jsonify, request
 
 import config
 from pumpportal_client import listen_for_migrations
@@ -138,11 +138,111 @@ _monitoring_lock = threading.Lock()
 _market_data_cache: dict = {}
 
 
+async def scan_coin(mint_address: str) -> dict:
+    """Standalone per-coin check, extracted from the polling loop.
+
+    Reuses the existing DexScreener/RugCheck calls (data_sources.py) and
+    scoring (scoring.py) without changing scoring logic. On-demand scans
+    have no price history, so momentum is 0.0 (same as a first poll).
+    Returns score, liquidity, volume, momentum and risk flags as a dict.
+    """
+    pairs, rugcheck_report = await asyncio.gather(
+        asyncio.to_thread(get_dexscreener_pairs, mint_address),
+        asyncio.to_thread(get_rugcheck_report, mint_address),
+    )
+    best_pair = pairs[0] if pairs else {}
+    momentum_pct = 0.0
+    result = score_token(mint_address, best_pair, rugcheck_report, momentum_pct)
+    volume_h1 = (best_pair.get("volume") or {}).get("h1", 0) or 0
+    risks = (rugcheck_report or {}).get("risks") or []
+    risk_flags = [
+        {"name": r.get("name"), "level": r.get("level")}
+        for r in risks if isinstance(r, dict)
+    ]
+    return {
+        "mint": mint_address,
+        "score": result.score,
+        "is_high_potential": result.is_high_potential,
+        "liquidity_usd": result.liquidity_usd,
+        "market_cap_usd": result.market_cap_usd,
+        "volume_h1": volume_h1,
+        "momentum_pct": momentum_pct,
+        "risk_flags": risk_flags,
+        "reasons": result.reasons,
+        "potential_label": result.potential_label,
+    }
+
+
+INDEX_HTML = """<!doctype html><html><head><meta charset="utf-8">
+<title>Memecoin Scanner</title>
+<style>body{font-family:sans-serif;max-width:900px;margin:2em auto;padding:0 1em}
+table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px;text-align:left}
+button{padding:8px 16px;margin:4px;cursor:pointer}input{padding:8px;width:420px;max-width:90%}</style>
+</head><body>
+<h1>Memecoin Scanner</h1>
+<button id="scanNow" onclick="scanLatest()">Scan Now</button>
+<span id="status"></span>
+<h2>Monitored coins</h2>
+<table><thead><tr><th>Mint</th><th>Score</th><th>Liquidity $</th><th>Volume 1h $</th><th>Risk</th></tr></thead>
+<tbody id="results"></tbody></table>
+<h2>Check one coin</h2>
+<input id="mint" placeholder="mint address"><button onclick="scanOne()">Check</button>
+<table><thead><tr><th>Mint</th><th>Score</th><th>Liquidity $</th><th>Risk</th></tr></thead>
+<tbody id="single"></tbody></table>
+<script>
+function riskText(r){return (r.risk_flags||[]).map(f=>f.name+' ('+f.level+')').join('; ')||'-';}
+function row(r){return '<tr><td>'+r.mint+'</td><td>'+r.score+'</td><td>'+r.liquidity_usd+'</td><td>'+(r.volume_h1??'-')+'</td><td>'+riskText(r)+'</td></tr>';}
+async function scanLatest(){document.getElementById('status').textContent='Scanning...';
+ const res=await fetch('/api/scan-latest',{method:'POST'});const data=await res.json();
+ const list=Array.isArray(data)?data:(data.results||[]);
+ document.getElementById('results').innerHTML=list.map(row).join('');
+ document.getElementById('status').textContent='Done ('+list.length+' coins)';}
+async function scanOne(){const m=document.getElementById('mint').value.trim();if(!m)return;
+ const res=await fetch('/api/scan/'+encodeURIComponent(m),{method:'POST'});const data=await res.json();
+ document.getElementById('single').innerHTML=row(data);}
+</script></body></html>"""
+
+
 @app.route("/")
+def index():
+    if request.args.get("format") == "json" or "application/json" in (request.headers.get("Accept") or ""):
+        with _monitoring_lock:
+            _status["currently_monitoring"] = list(_monitoring)
+        return jsonify({"status": "ok", **_status})
+    return INDEX_HTML
+
+
+@app.route("/health")
 def health():
     with _monitoring_lock:
         _status["currently_monitoring"] = list(_monitoring)
     return {"status": "ok", **_status}
+
+
+@app.route("/api/scan/<mint_address>", methods=["POST"])
+def api_scan_one(mint_address):
+    try:
+        result = asyncio.run(scan_coin(mint_address))
+    except Exception as e:
+        log.warning("On-demand scan fail за %s: %s", mint_address, e)
+        return jsonify({"mint": mint_address, "error": str(e)}), 500
+    return jsonify(result)
+
+
+@app.route("/api/scan-latest", methods=["POST"])
+def api_scan_latest():
+    with _monitoring_lock:
+        mints = list(_monitoring)
+
+    async def _scan_all():
+        return list(await asyncio.gather(*(scan_coin(m) for m in mints)))
+
+    try:
+        results = asyncio.run(_scan_all())
+    except Exception as e:
+        log.warning("On-demand scan-latest fail: %s", e)
+        return jsonify({"error": str(e)}), 500
+    return jsonify(results)
 
 
 @app.route("/test-email")
