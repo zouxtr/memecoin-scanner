@@ -17,12 +17,14 @@ input { padding: 8px; width: 420px; max-width: 90%; }
 .rug-red { background: #ffd9d9; color: #a31212; }
 .rug-na { background: #eee; color: #888; }
 .rugcell { max-width: 340px; }
+.tab { font-weight: normal; }
+.active-tab { font-weight: bold; border: 2px solid #333; }
 </style>
 </head>
 <body>
 <div>
-<button id="tabCrypto" onclick="switchMode('crypto')">Crypto</button>
-<button id="tabStocks" onclick="switchMode('stocks')">Penny Stocks</button>
+<button id="tabCrypto" class="tab active-tab" onclick="switchMode('crypto')">Crypto</button>
+<button id="tabStocks" class="tab" onclick="switchMode('stocks')">Penny Stocks</button>
 <label style="margin-left:12px"><input type="checkbox" id="notifToggle" checked> Notifications</label>
 </div>
 <div id="cryptoPane">
@@ -93,14 +95,20 @@ function renderNotifLog() {
 window.clearNotifLog = () => clearNotificationLog();
 renderNotifLog();
 </script>
-<script type="module">
-import './js/stocks.js';
-window.switchMode = (mode) => {
-  const crypto = mode === 'crypto';
+<script>
+// Mode switcher is a classic script (not a module) on purpose: the tabs
+// must keep working even if one of the scanner modules below fails to load.
+window.switchMode = function (mode) {
+  var crypto = mode === 'crypto';
   document.getElementById('cryptoPane').style.display = crypto ? '' : 'none';
   document.getElementById('stocksPane').style.display = crypto ? 'none' : '';
   document.title = crypto ? 'Memecoin Scanner (static)' : 'Penny Stock Scanner (via /api/stocks proxy)';
+  document.getElementById('tabCrypto').classList.toggle('active-tab', crypto);
+  document.getElementById('tabStocks').classList.toggle('active-tab', !crypto);
 };
+</script>
+<script type="module">
+import './js/stocks.js';
 </script>
 <script type="module" src="./js/app.js"></script>
 </body>
