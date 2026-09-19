@@ -97,7 +97,7 @@ async function pollCoin(mint, state) {
       !state.alerted) {
     state.alerted = true;
     markSeen(mint, state.result);
-    notifyHighPotential(state.result);
+    state.notifStatus = notifyHighPotential(state.result, 'crypto');
   }
   if (rugBlocked && result.is_high_potential && !state.rugLogged) {
     state.rugLogged = true;
@@ -153,7 +153,10 @@ function render() {
   const tbody = $('results');
   const rows = [...tracked.entries()].map(([mint, s]) => {
     const r = s.result;
-    const alertCell = s.alerted ? 'alerted'
+    const notifBadge = s.notifStatus === 'muted' ? ' (muted 🔕)'
+      : s.notifStatus === 'no-permission' ? ' (no permission ⚠️)'
+      : s.notifStatus === 'sent' ? ' 🔔' : '';
+    const alertCell = s.alerted ? 'alerted' + notifBadge
       : (s.rug && s.rug.isHighRugRisk) ? `HIGH RUG RISK (${s.consecutive}/${CONFIG.MIN_POLLS_BEFORE_ALERT})`
       : (s.consecutive + '/' + CONFIG.MIN_POLLS_BEFORE_ALERT);
     return `<tr><td title="${mint}">${mint.slice(0, 8)}…</td>` +
@@ -236,7 +239,15 @@ window.scanSingle = async () => {
     markSeen(mint, result);
     lastSingleMint = mint;
     $('copySingleBtn').disabled = false;
-    if (isHighPotential(result) && !rug.isHighRugRisk) notifyHighPotential(result);
+    if (isHighPotential(result) && !rug.isHighRugRisk) {
+      const st = notifyHighPotential(result, 'crypto');
+      $('singleResult').textContent =
+        `score ${result.score} | rug ${rug.ruggedScore}${rug.isHighRugRisk ? ' HIGH RUG RISK' : ''} | liquidity $${Math.round(result.liquidity_usd).toLocaleString()} | ` +
+        `risk: ${riskText(result)} | ${(result.reasons || []).join('; ')}` +
+        (rug.flags.length ? ` | RUG FLAGS: ${rug.flags.map((f) => f.label).join('; ')}` : '') +
+        (st === 'muted' ? ' | notification muted 🔕' : st === 'sent' ? ' | notified 🔔' : ' | notification not shown (no permission ⚠️)');
+      return;
+    }
     $('singleResult').textContent =
       `score ${result.score} | rug ${rug.ruggedScore}${rug.isHighRugRisk ? ' HIGH RUG RISK' : ''} | liquidity $${Math.round(result.liquidity_usd).toLocaleString()} | ` +
       `risk: ${riskText(result)} | ${(result.reasons || []).join('; ')}` +

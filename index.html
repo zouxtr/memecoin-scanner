@@ -23,6 +23,7 @@ input { padding: 8px; width: 420px; max-width: 90%; }
 <div>
 <button id="tabCrypto" onclick="switchMode('crypto')">Crypto</button>
 <button id="tabStocks" onclick="switchMode('stocks')">Penny Stocks</button>
+<label style="margin-left:12px"><input type="checkbox" id="notifToggle" checked> Notifications</label>
 </div>
 <div id="cryptoPane">
 <h1>Memecoin Scanner <span class="muted">(static, client-side only)</span></h1>
@@ -60,6 +61,38 @@ input { padding: 8px; width: 420px; max-width: 90%; }
 </table>
 </div>
 
+<div id="notifPanel">
+<h2>Notifications <span class="muted">(history — both scanners)</span></h2>
+<table>
+<thead><tr><th>Time</th><th>Type</th><th>Symbol / Mint</th><th>Score</th><th>Status</th></tr></thead>
+<tbody id="notifLog"><tr><td colspan="5">No notifications yet.</td></tr></tbody>
+</table>
+<p><button onclick="clearNotifLog()">Clear history</button></p>
+</div>
+
+<script type="module">
+import { isNotificationsEnabled, setNotificationsEnabled, getNotificationLog, clearNotificationLog } from './js/notify.js';
+const toggle = document.getElementById('notifToggle');
+toggle.checked = isNotificationsEnabled();
+toggle.onchange = () => setNotificationsEnabled(toggle.checked);
+window.addEventListener('notifications-changed', () => {
+  toggle.checked = isNotificationsEnabled();
+  renderNotifLog();
+});
+function esc(s) { return String(s).replace(/</g, '&lt;'); }
+function renderNotifLog() {
+  const tbody = document.getElementById('notifLog');
+  const log = getNotificationLog();
+  tbody.innerHTML = log.map((e) => {
+    const badge = e.status === 'sent' ? 'sent 🔔' : e.status === 'muted' ? 'muted 🔕' : esc(e.status);
+    return `<tr><td>${esc(new Date(e.at).toLocaleString())}</td><td>${esc(e.kind)}</td>` +
+      `<td title="${esc(e.id)}">${esc(e.id.slice(0, 12))}${e.id.length > 12 ? '…' : ''}</td>` +
+      `<td>${esc(e.score)}</td><td>${badge}</td></tr>`;
+  }).join('') || '<tr><td colspan="5">No notifications yet.</td></tr>';
+}
+window.clearNotifLog = () => clearNotificationLog();
+renderNotifLog();
+</script>
 <script type="module">
 import './js/stocks.js';
 window.switchMode = (mode) => {

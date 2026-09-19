@@ -28,7 +28,7 @@ async function fetchQuote(symbol) {
 
 function upsertRow(symbol, quote, scored) {
   const prev = tracked.get(symbol) || {};
-  tracked.set(symbol, { ...prev, quote, scored, alerted: prev.alerted || false });
+  tracked.set(symbol, { ...prev, quote, scored, alerted: prev.alerted || false, notifStatus: prev.notifStatus || null });
 }
 
 function render() {
@@ -39,12 +39,15 @@ function render() {
     .map(([sym, s]) => {
       const q = s.quote || {};
       const sc = s.scored || {};
+      const notifBadge = s.notifStatus === 'muted' ? ' (muted 🔕)'
+        : s.notifStatus === 'no-permission' ? ' (no permission ⚠️)'
+        : s.notifStatus === 'sent' ? ' 🔔' : '';
       return `<tr><td><b>${sym}</b></td>` +
         `<td>${q.price != null ? '$' + Number(q.price).toFixed(3) : '…'}</td>` +
         `<td>${q.changePct != null ? Number(q.changePct).toFixed(2) + '%' : '…'}</td>` +
         `<td>${q.volume != null ? Number(q.volume).toLocaleString() : (q.avgVolume != null ? 'avg ' + Number(q.avgVolume).toLocaleString() : '…')}</td>` +
         `<td>${sc.score ?? '…'}</td>` +
-        `<td>${s.alerted ? 'alerted' : (sc.potential_label || '…')}</td></tr>`;
+        `<td>${s.alerted ? 'alerted' + notifBadge : (sc.potential_label || '…')}</td></tr>`;
     });
   tbody.innerHTML = rows.join('') || `<tr><td colspan="6">No stocks yet — press Scan Now.</td></tr>`;
   const count = $('stockCount');
@@ -72,7 +75,7 @@ export async function scanStocksNow() {
             && !st.alerted && !seen[m.symbol]) {
           st.alerted = true;
           markSeen(m.symbol, { ...scored, symbol: m.symbol });
-          notifyHighPotential({ mint: m.symbol, score: scored.score, liquidity_usd: 0, potential_label: 'STOCK HIGH POTENTIAL' });
+          st.notifStatus = notifyHighPotential({ mint: m.symbol, score: scored.score, liquidity_usd: 0, potential_label: 'STOCK HIGH POTENTIAL' }, 'stock');
         }
       } catch (e) {
         console.warn('Stock quote failed for', m.symbol, e);
