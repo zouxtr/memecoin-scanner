@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memecoin Scanner (static)</title>
+<style>
+body { font-family: sans-serif; max-width: 960px; margin: 2em auto; padding: 0 1em; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #ccc; padding: 6px; text-align: left; font-size: 14px; }
+button { padding: 8px 16px; margin: 4px; cursor: pointer; }
+input { padding: 8px; width: 420px; max-width: 90%; }
+.muted { color: #666; font-size: 13px; }
+.rug { display: inline-block; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 13px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+.rug-green { background: #dff5d8; color: #1c6b1c; }
+.rug-yellow { background: #fff3c4; color: #8a6d00; }
+.rug-red { background: #ffd9d9; color: #a31212; }
+.rug-na { background: #eee; color: #888; }
+.rugcell { max-width: 340px; }
+</style>
+</head>
+<body>
+<div>
+<button id="tabCrypto" onclick="switchMode('crypto')">Crypto</button>
+<button id="tabStocks" onclick="switchMode('stocks')">Penny Stocks</button>
+</div>
+<div id="cryptoPane">
+<h1>Memecoin Scanner <span class="muted">(static, client-side only)</span></h1>
+<p class="muted">No backend. Graduation events via PumpPortal WebSocket, market data via DexScreener, risk via RugCheck — all from your browser. Alerts via browser notifications.</p>
+
+<button id="startBtn" onclick="startMonitoring()">Start Monitoring</button>
+<button id="stopBtn" onclick="stopMonitoring()" disabled>Stop</button>
+<button onclick="scanNow()">Scan Now</button>
+<span class="muted">WS: <span id="wsStatus">idle</span> · tracked: <span id="trackedCount">0</span></span>
+
+<h2>Tracked coins</h2>
+<table>
+<thead><tr><th>Mint</th><th></th><th>Score</th><th>Rug risk</th><th>Liquidity</th><th>Momentum</th><th>Risk</th><th>Alert</th></tr></thead>
+<tbody id="results"><tr><td colspan="8">No coins tracked yet — press Start Monitoring.</td></tr></tbody>
+</table>
+
+<h2>Check one coin</h2>
+<input id="mintInput" placeholder="mint address">
+<button onclick="scanSingle()">Check</button>
+<button id="copySingleBtn" onclick="copySingle()" disabled>Copy mint</button>
+<p id="singleResult" class="muted"></p>
+</div><!-- /cryptoPane -->
+
+<div id="stocksPane" style="display:none">
+<h1>Penny Stock Scanner <span class="muted">(via /api/stocks proxy)</span></h1>
+<p class="muted">Top sub-$5 movers via Finnhub (server-side key). Scans every 60s. Independent from crypto loop.</p>
+<button id="stockStartBtn" onclick="startStockMonitoring()">Start Stock Monitoring</button>
+<button id="stockStopBtn" onclick="stopStockMonitoring()" disabled>Stop</button>
+<button onclick="scanStocksNow()">Scan Now</button>
+<span class="muted">status: <span id="stockStatus">idle</span> · tracked: <span id="stockCount">0</span></span>
+<h2>Tracked stocks <span class="rug rug-yellow" title="Free-tier market data (IEX live / SIP delayed). Prices and volumes can lag the consolidated tape by ~15 minutes.">data may be delayed ~15min</span></h2>
+<table>
+<thead><tr><th>Symbol</th><th>Price</th><th>% change</th><th>Volume</th><th>Score</th><th>Signal</th></tr></thead>
+<tbody id="stockResults"><tr><td colspan="6">No stocks tracked yet — press Scan Now.</td></tr></tbody>
+</table>
+</div>
+
+<script type="module">
+import './js/stocks.js';
+window.switchMode = (mode) => {
+  const crypto = mode === 'crypto';
+  document.getElementById('cryptoPane').style.display = crypto ? '' : 'none';
+  document.getElementById('stocksPane').style.display = crypto ? 'none' : '';
+};
+</script>
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

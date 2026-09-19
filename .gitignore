@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 data/seen.json
 .DS_Store
+.vercel
+.env*
