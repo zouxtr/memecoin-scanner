@@ -10,6 +10,21 @@ const ENABLED_KEY = 'memecoin-scanner:notifications-enabled';
 const LOG_KEY = 'memecoin-scanner:notification-log';
 const MAX_LOG = 100;
 
+export async function requestPermissionOnLoad() {
+  try {
+    if (!('Notification' in window)) {
+      console.warn('This browser does not support notifications.');
+      return 'unsupported';
+    }
+    if (Notification.permission === 'granted') return 'granted';
+    if (Notification.permission === 'denied') return 'denied';
+    return await Notification.requestPermission();
+  } catch (e) {
+    console.warn('Notification permission request failed:', e);
+    return 'error';
+  }
+}
+
 export function isNotificationsEnabled() {
   try {
     const v = localStorage.getItem(ENABLED_KEY);
