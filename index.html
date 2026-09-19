@@ -99,6 +99,7 @@ window.switchMode = (mode) => {
   const crypto = mode === 'crypto';
   document.getElementById('cryptoPane').style.display = crypto ? '' : 'none';
   document.getElementById('stocksPane').style.display = crypto ? 'none' : '';
+  document.title = crypto ? 'Memecoin Scanner (static)' : 'Penny Stock Scanner (via /api/stocks proxy)';
 };
 </script>
 <script type="module" src="./js/app.js"></script>
